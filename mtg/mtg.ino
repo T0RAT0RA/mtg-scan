@@ -31,9 +31,8 @@ void setup(void)
   // Fastest baud rate 921600 (change to 115200 for Due)
   Serial.begin(921600);
 
-  // Begin capturing in  QVGA mode
-  myCam.beginQvga();
-
+  // Begin capturing in JPEG
+  myCam.beginJpeg640x480();
 
   myservo.attach(CARD_HOLDER_SERVO);
   myservo.write(90);
@@ -44,7 +43,6 @@ void setup(void)
 
 void loop(void)
 {
-  char log [255];
   int card_reading = digitalRead(CARD_HOLDER_SENSOR);
 
   if (card_reading != previous_sensor_value) {
@@ -57,11 +55,7 @@ void loop(void)
       sensor_value = card_reading;
 
       if (sensor_value == LOW) {
-        sprintf (log, "CARD DETECTED");
-        Serial.println(log);
-      } else {
-        sprintf (log, "NO CARD");
-        Serial.println(log);
+        Serial.write(42);
       }
     }
   }
