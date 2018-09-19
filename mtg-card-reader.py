@@ -15,8 +15,6 @@ OUTFILENAME = './captures/card.jpg'
 def analyze_card(path):
     print('\nStart analyzing card')
     with open(path, 'rb') as content_file:
-        print('reading')
-        print(content_file)
         image = content_file.read()
 
     client = boto3.client('rekognition')
@@ -48,18 +46,37 @@ def capture_card():
     # Open output file
     outfile = open(OUTFILENAME, 'wb')
 
-    # Write BMP header
-    outfile.write(bytearray(header))
+    # Loop over bytes from Arduino for a single image
+    written = False
+    prevbyte = None
+    done = False
+    while not done:
 
-    # Read bytes from serial and write them to file
-    for k in range(320*240*2):
-        c = outfile.write(port.read())
+        # Read a byte from Arduino
+        currbyte = port.read(1)
 
-    # Send "stop" message
-    sendbyte(port, 0)
+        # Send "stop" message
+        sendbyte(port, 0)
 
-    # Close output file
-    outfile.close()
+        # If we've already read one byte, we can check pairs of bytes
+        if prevbyte:
+
+            # Start-of-image sentinel bytes: write previous byte to temp file
+            if ord(currbyte) == 0xd8 and ord(prevbyte) == 0xff:
+                outfile.write(prevbyte)
+                written = True
+
+            # Inside image, write current byte to file
+            if written:
+                outfile.write(currbyte)
+
+            # End-of-image sentinel bytes: close temp file and display its contents
+            if ord(currbyte) == 0xd9 and ord(prevbyte) == 0xff:
+                outfile.close()
+                done = True
+
+        # Track previous byte
+        prevbyte = currbyte
 
     print('\nDone capturing')
 
@@ -89,7 +106,7 @@ if __name__ == '__main__':
     arduino_ports = [
         p.device
         for p in serial.tools.list_ports.comports()
-        if 'Arduino' in p.manufacturer
+        if p.manufacturer is not None and 'Arduino' in p.manufacturer
     ]
 
     if not arduino_ports:
@@ -98,23 +115,22 @@ if __name__ == '__main__':
         warnings.warn('Multiple Arduinos found - using the first')
 
     # Open connection to Arduino with a timeout of two seconds
-    port = serial.Serial(arduino_ports[0], BAUD, timeout=2)
+    port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
 
     # Report acknowledgment from camera
     getack(port)
     time.sleep(0.2)
 
-    while(1):
-        response = port.readline()
-        if (input("prompt") == 'y' or response == b'CARD DETECTED\r\n'):
+    while(1): 
+        response = ord(port.read(1))
+        if response == 42:
             print('CARD DETECTED.')
-            # capture_card()
+            capture_card()
             try:
                 card_meta = analyze_card(OUTFILENAME)
                 print(card_meta)
             except Exception as inst:
                 print({"error": str(inst)})
-
         else:
             print(response)
         time.sleep(0.1)
