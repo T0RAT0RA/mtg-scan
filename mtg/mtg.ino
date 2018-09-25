@@ -3,8 +3,10 @@
 Servo cardServo;
 
 // MOTORS
-const int MOTOR_CARD = 5;
-const int MOTOR_CARD_TIME = 250; //ms
+const int MOTOR_CARD_FORWARD = 9;
+const int MOTOR_CARD_BACKWARD = 10;
+const int MOTOR_CARD_FORWARD_TIME = 200; //ms
+const int MOTOR_CARD_BACKWARD_TIME = 100; //ms
 const int SERVO_CARD = 2;
 const int SERVO_CLOSE = 60;
 const int SERVO_OPEN = 130;
@@ -42,7 +44,8 @@ void setup(void)
 {
   Serial.begin(SERIAL_SPEED);
 
-  pinMode(MOTOR_CARD, OUTPUT);
+  pinMode(MOTOR_CARD_FORWARD, OUTPUT);
+  pinMode(MOTOR_CARD_BACKWARD, OUTPUT);
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(SERVO_CARD, OUTPUT);
@@ -56,19 +59,29 @@ void setup(void)
 }
 
 bool serving_new_card = false;
+bool prepare_new_card = false;
 unsigned long serving_card_start = 0;
 void sendCardtoAnalyse(void)
 {
   int button_a = digitalRead(BUTTON_A);
-  if (!serving_new_card && button_a == LOW) {
+  if (!serving_new_card && !prepare_new_card && button_a == LOW) {
     serving_new_card = true;
     serving_card_start = millis();
-    analogWrite(MOTOR_CARD, 100);
+    analogWrite(MOTOR_CARD_FORWARD, 255);
+    analogWrite(MOTOR_CARD_BACKWARD, 0);
   }
 
-  if (serving_new_card && (millis() - serving_card_start) > MOTOR_CARD_TIME) {
+  if (serving_new_card && (millis() - serving_card_start) > MOTOR_CARD_FORWARD_TIME) {
     serving_new_card = false;
-    analogWrite(MOTOR_CARD, 0);
+    prepare_new_card = true;
+    analogWrite(MOTOR_CARD_FORWARD, 0);
+    analogWrite(MOTOR_CARD_BACKWARD, 255);
+  }
+  
+  if (prepare_new_card && (millis() - serving_card_start) > MOTOR_CARD_FORWARD_TIME + MOTOR_CARD_BACKWARD_TIME) {
+    prepare_new_card = false;
+    analogWrite(MOTOR_CARD_FORWARD, 0);
+    analogWrite(MOTOR_CARD_BACKWARD, 0);
   }
 }
 
@@ -143,35 +156,35 @@ byte prevbyte;
 byte currbyte;
 void loop(void)
 {
-  //  sendCardtoAnalyse();
-  //  card_ready = isCardReadyToAnalyze();
-  //  card_color = getCardColor(card_ready);
-  //  if (card_ready) {
-  //    digitalWrite(LED_RED, HIGH);
-  //    if (card_color) {
-  //      sendCardToSorting(true);
-  //    }
-  //  } else {
-  //    digitalWrite(LED_RED, LOW);
-  //    sendCardToSorting(false);
-  //    //    card_color = CARD_NONE;
-  //  }
-  //  debugSendCardToSorting();
-
-  if (Serial.available()) {
-    currbyte = Serial.peek();
-
-    if (prevbyte == 43) {
-      prevbyte = Serial.read();
-      currbyte = Serial.read();
-      Serial.print("I received: ");
-      Serial.println(currbyte, DEC);
-      Serial.print("prev:");
-      Serial.println(prevbyte, DEC);
-      Serial.read(); // clear prevbyte
+    sendCardtoAnalyse();
+    card_ready = isCardReadyToAnalyze();
+    card_color = getCardColor(card_ready);
+    if (card_ready) {
+      digitalWrite(LED_RED, HIGH);
+      if (card_color) {
+        sendCardToSorting(true);
+      }
+    } else {
+      digitalWrite(LED_RED, LOW);
+      sendCardToSorting(false);
+      //    card_color = CARD_NONE;
     }
-  }
-  prevbyte = currbyte;
+    debugSendCardToSorting();
+
+//  if (Serial.available()) {
+//    currbyte = Serial.peek();
+//
+//    if (prevbyte == 43) {
+//      prevbyte = Serial.read();
+//      currbyte = Serial.read();
+//      Serial.print("I received: ");
+//      Serial.println(currbyte, DEC);
+//      Serial.print("prev:");
+//      Serial.println(prevbyte, DEC);
+//      Serial.read(); // clear prevbyte
+//    }
+//  }
+//  prevbyte = currbyte;
 
   if (!card_ready && digitalRead(BUTTON_B) == LOW) {
     Serial.write(42);
