@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys, base64, glob, time
+import random
 import boto3
 import warnings
 import serial
@@ -55,9 +56,6 @@ def capture_card():
         # Read a byte from Arduino
         currbyte = port.read(1)
 
-        # Send "stop" message
-        sendbyte(port, 0)
-
         # If we've already read one byte, we can check pairs of bytes
         if prevbyte:
 
@@ -78,10 +76,12 @@ def capture_card():
         # Track previous byte
         prevbyte = currbyte
 
+    # Send "stop" message
+    sendbyte(port, 0)
+
     print('\nDone capturing')
 
 # helpers  --------------------------------------------------------------------------
-
 def num2bytes(n):
     return [n&0xFF, (n>>8)&0xFF, (n>>16)&0xFF, (n>>24)&0XFF]
 
@@ -101,6 +101,17 @@ def ackcheck(port, msg):
 
 
 
+CARD_NONE = 0;
+CARD_UNKNOWN = -1;
+CARD_RED = 1;
+CARD_GREEN = 2;
+CARD_BLUE = 3;
+CARD_BLACK = 4;
+CARD_WHITE = 5;
+CARD_COLORLESS = 6;
+CARD_OTHER = 7;
+
+# main  --------------------------------------------------------------------------
 if __name__ == '__main__':
     # Find Arduino port
     arduino_ports = [
@@ -115,22 +126,28 @@ if __name__ == '__main__':
         warnings.warn('Multiple Arduinos found - using the first')
 
     # Open connection to Arduino with a timeout of two seconds
-    port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
+    port = serial.Serial(arduino_ports[0], BAUD, timeout=5)
 
     # Report acknowledgment from camera
     getack(port)
     time.sleep(0.2)
 
-    while(1): 
-        response = ord(port.read(1))
-        if response == 42:
+    print('Ready, waiting incoming data...')
+    while(1):
+        response = port.read(1)
+        if len(response) == 1 and ord(response) == 42:
             print('CARD DETECTED.')
-            capture_card()
-            try:
-                card_meta = analyze_card(OUTFILENAME)
-                print(card_meta)
-            except Exception as inst:
-                print({"error": str(inst)})
+            # time.sleep(1);
+            color = random.choice([
+                CARD_RED,
+                CARD_GREEN,
+                CARD_BLUE,
+                CARD_BLACK,
+                CARD_WHITE,
+            ])
+            print('CARD ANALYSED: %s' % color)
+            sendbyte(port, 43)
+            sendbyte(port, color)
         else:
             print(response)
         time.sleep(0.1)
