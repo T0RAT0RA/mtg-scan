@@ -47,15 +47,13 @@ def ackcheck(port, msg):
     line = port.readline().decode()
     assert(msg in line)
 
-
-OUTFILENAME = './card.jpg'
-def capture_card():
-    print('\nStart capturing')
+OUTFILENAME = './card'
+def capture_card(cardIndex):
+    print('\nWait camera')
     # Send "start capture" message
-    sendbyte(port, 1)
 
     # Open output file
-    outfile = open(OUTFILENAME, 'wb')
+    outfile = open(OUTFILENAME + str(cardIndex) + '.jpg', 'wb')
 
     # Loop over bytes from Arduino for a single image
     written = False
@@ -65,6 +63,7 @@ def capture_card():
 
         # Read a byte from Arduino
         currbyte = port.read(1)
+
 
         # If we've already read one byte, we can check pairs of bytes
         if prevbyte:
@@ -87,7 +86,7 @@ def capture_card():
         prevbyte = currbyte
 
     # Send "stop" message
-    sendbyte(port, 0)
+    #sendbyte(port, 0)
 
     print('\nDone capturing')
 
@@ -124,7 +123,7 @@ if __name__ == '__main__':
         warnings.warn('Multiple Arduinos found - using the first')
 
     # Open connection to Arduino with a timeout of two seconds
-    port = serial.Serial(arduino_ports[0], BAUD, timeout=2)
+    port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
 
     # Report acknowledgment from camera
     getack(port)
@@ -132,8 +131,10 @@ if __name__ == '__main__':
     # Wait a spell
     time.sleep(0.2)
 
+    INDEX = 0
     while(1):
-        input('Press enter to capture img')
-        capture_card()
-        print(average_image_color(OUTFILENAME))
+        #input('Press enter to capture img')
+        capture_card(INDEX + 1)
+        #print("TEST")#average_image_color(OUTFILENAME))
         time.sleep(0.1)
+        INDEX = INDEX + 1
