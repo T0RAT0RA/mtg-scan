@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import sys, base64, os, glob, time
+import os, re, time
 import itertools
+import arrow, click
 import boto3, scrython
 import serial
 import serial.tools.list_ports
@@ -10,11 +11,25 @@ from sys import stdout
 
 BAUD = 921600
 CAPTURE_FOLDER = './captures/'
-CARD_NAME = 'card*.jpg'
+CARD_EXT = '.jpg'
 
+
+def rename_file(path, name):
+    if not os.path.isfile(path):
+        print('File %s does not exist, skipping.' % path)
+        return False
+
+
+    folder = os.path.dirname(path)
+    card_count = [f for f in os.listdir(folder) if re.search(r'[0-9]+' + name + '[0-9]+' + CARD_EXT, f)]
+    name = name + str(len(card_count) + 1)
+    new_filename = re.sub(CARD_EXT, name + CARD_EXT, path)
+    print('Renaming %s to % s' % (path, new_filename))
+    os.rename(path, new_filename)
 
 def analyze_card(path):
     print('\nStart analyzing card')
+    start_analyze = arrow.now()
     with open(path, 'rb') as content_file:
         image = content_file.read()
 
@@ -32,13 +47,19 @@ def analyze_card(path):
             colors = []
             error = None
             # edition = lines[-1]['DetectedText']
+            print('Name detected: %s' % name)
 
             try:
                 card = scrython.cards.Named(exact=name)
                 colors = card.color_identity()
+                rename_file(path, name)
+                print('Card found. Colors: %s' % colors)
             except Exception as e:
                 error = str(e)
+                print('Card not found. %s' % str(e))
 
+            duration = (arrow.now() - start_analyze).seconds
+            print('Analyze done in %is.' % duration)
             return {
                 'name': name,
                 'colors': colors,
@@ -49,13 +70,15 @@ def analyze_card(path):
     else:
         raise Exception('No text found.')
 
-def capture_card(path):
+
+def capture_card(port, path):
     print('\nWaiting capture...')
 
     # Loop over bytes from Arduino for a single image
     written = False
     prevbyte = None
     done = False
+    start_capturing = None
     while not done:
 
         # Read a byte from Arduino
@@ -66,6 +89,8 @@ def capture_card(path):
 
             # Start-of-image sentinel bytes: write previous byte to temp file
             if ord(currbyte) == 0xd8 and ord(prevbyte) == 0xff:
+                print('Start capturing.')
+                start_capturing = arrow.now()
                 # Open output file
                 outfile = open(path, 'wb')
                 outfile.write(prevbyte)
@@ -83,7 +108,9 @@ def capture_card(path):
         # Track previous byte
         prevbyte = currbyte
 
-    return True;
+    duration = (arrow.now() - start_capturing).seconds
+    print('Capture done in %is.' % duration)
+    return True
 
 # helpers  --------------------------------------------------------------------------
 def getack(port):
@@ -108,6 +135,8 @@ cards = {
   'success': [],
   'error': []
 }
+
+@click.command()
 def main():
     # Find Arduino port
     arduino_ports = [
@@ -116,35 +145,36 @@ def main():
         if p.manufacturer is not None and 'Arduino' in p.manufacturer
     ]
 
-    # if not arduino_ports:
-    #     raise IOError("No Arduino found")
-    # if len(arduino_ports) > 1:
-    #     print('Multiple Arduinos found - using the first')
+    if not arduino_ports:
+        raise IOError("No Arduino found")
+    if len(arduino_ports) > 1:
+        print('Multiple Arduinos found - using the first')
 
     # Open connection to Arduino with a timeout of two seconds
-    # port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
+    port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
 
     # Report acknowledgment from camera
-    # getack(port)
+    getack(port)
     time.sleep(0.2)
 
-    print('Clearing capture folder: %s' % CAPTURE_FOLDER)
-    for filename in glob.glob(CAPTURE_FOLDER + CARD_NAME):
-        # os.remove(filename)
+    CAPTURES = CAPTURE_FOLDER + arrow.now().format('YYYY-MM-DD HH:mm:ss') + '/'
+    if not os.path.exists(CAPTURES):
+        os.makedirs(CAPTURES)
 
-    print('Ready, waiting incoming data...')
+    print('Creating capture folder: %s' % CAPTURES)
+
+    print('Ready.')
 
     index = 1;
     while(1):
-        path = CAPTURE_FOLDER + CARD_NAME.replace('*', str(index));
+        path = CAPTURES + str(index) + CARD_EXT;
 
-        capture_card(path)
+        capture_card(port, path)
 
         try:
             card_meta = analyze_card(path)
-        except FileNotFoundError as e:
+        except Exception as e:
             print(str(e))
-            time.sleep(1)
             continue
 
         if (card_meta['error']):
@@ -182,5 +212,5 @@ def printStatus():
 if __name__ == '__main__':
     try:
         main()
-    except KeyboardInterrupt:
+    except click.Abort:
         printStatus()
