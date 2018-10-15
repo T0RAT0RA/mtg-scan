@@ -101,7 +101,7 @@ def capture_card(port, path):
                 outfile.write(currbyte)
 
             # End-of-image sentinel bytes: close temp file and display its contents
-            if ord(currbyte) == 0xd9 and ord(prevbyte) == 0xff:
+            if written and ord(currbyte) == 0xd9 and ord(prevbyte) == 0xff:
                 outfile.close()
                 done = True
 
@@ -113,22 +113,19 @@ def capture_card(port, path):
     return True
 
 # helpers  --------------------------------------------------------------------------
-def getack(port):
-    stdout.write(port.readline().decode())
-
 def sendbyte(port, value):
     port.write(bytearray([value]))
 
 
-CARD_NONE = 0;
-CARD_UNKNOWN = -1;
-CARD_RED = 1;
-CARD_GREEN = 2;
-CARD_BLUE = 3;
-CARD_BLACK = 4;
-CARD_WHITE = 5;
-CARD_COLORLESS = 6;
-CARD_OTHER = 7;
+CARD_NONE = 0
+CARD_UNKNOWN = -1
+CARD_RED = 1
+CARD_GREEN = 2
+CARD_BLUE = 3
+CARD_BLACK = 4
+CARD_WHITE = 5
+CARD_COLORLESS = 6
+CARD_OTHER = 7
 
 # main  --------------------------------------------------------------------------
 cards = {
@@ -154,7 +151,11 @@ def main():
     port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
 
     # Report acknowledgment from camera
-    getack(port)
+    ack = port.readline().decode()
+    print(ack)
+    if 'error' in ack.lower():
+        exit()
+
     time.sleep(0.2)
 
     CAPTURES = CAPTURE_FOLDER + arrow.now().format('YYYY-MM-DD HH:mm:ss') + '/'
@@ -165,7 +166,7 @@ def main():
 
     print('Ready.')
 
-    index = 1;
+    index = 1
     while(1):
         path = CAPTURES + str(index) + CARD_EXT;
 
@@ -176,6 +177,15 @@ def main():
         except Exception as e:
             print(str(e))
             continue
+
+
+        try:
+            color = card_meta['colors'][0]
+        except Exception as e:
+            color = 'X'
+
+        print('Sending %s' % color)
+        port.write(color.encode())
 
         if (card_meta['error']):
             cards['error'].append(card_meta)

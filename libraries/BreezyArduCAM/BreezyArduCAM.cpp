@@ -109,21 +109,21 @@ ArduCAM_Mini::ArduCAM_Mini(uint8_t addr, uint32_t mfs, uint8_t cs, class ArduCAM
     grabber = fg;
 }
 
-void ArduCAM_Mini::singleCapture(bool start)
+void ArduCAM_Mini::singleCapture(void)
 {
-    if (start) {
-            flush_fifo();
-            clear_fifo_flag();
-            start_capture();
-    }
+    bool done = false;
+    while (!done) {
+        flush_fifo();
+        clear_fifo_flag();
+        start_capture();
 
-    if (get_bit(ARDUCHIP_TRIG, CAP_DONE_MASK)) {
+        while(!get_bit(ARDUCHIP_TRIG , CAP_DONE_MASK));
 
         uint32_t length = read_fifo_length();
 
         if (length >= max_fifo_size || length == 0) {
             clear_fifo_flag();
-            return;
+            continue;
         }
 
         csLow();
@@ -132,13 +132,14 @@ void ArduCAM_Mini::singleCapture(bool start)
         if (usingJpeg) {
             grabJpegFrame(length);
         }
-        else {
-            grabQvgaFrame(length);
-        }
 
         csHigh();
         flush_fifo();
         clear_fifo_flag();
+
+        grabber->sendByte(0xFF);
+        grabber->sendByte(0xD9);
+        done = true;
     }
 }
 
