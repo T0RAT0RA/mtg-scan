@@ -117,7 +117,13 @@ void ArduCAM_Mini::singleCapture(void)
         clear_fifo_flag();
         start_capture();
 
-        while(!get_bit(ARDUCHIP_TRIG , CAP_DONE_MASK));
+        unsigned long started_at = millis();
+        int timeout = 3000;
+        while(!get_bit(ARDUCHIP_TRIG , CAP_DONE_MASK)) {
+          if(millis() - started_at >= timeout) {
+              break;
+          }
+        }
 
         uint32_t length = read_fifo_length();
 
