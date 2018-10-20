@@ -109,7 +109,7 @@ ArduCAM_Mini::ArduCAM_Mini(uint8_t addr, uint32_t mfs, uint8_t cs, class ArduCAM
     grabber = fg;
 }
 
-void ArduCAM_Mini::singleCapture(void)
+bool ArduCAM_Mini::singleCapture(void)
 {
     bool done = false;
     while (!done) {
@@ -121,7 +121,7 @@ void ArduCAM_Mini::singleCapture(void)
         int timeout = 3000;
         while(!get_bit(ARDUCHIP_TRIG , CAP_DONE_MASK)) {
           if(millis() - started_at >= timeout) {
-              break;
+              return false;
           }
         }
 
@@ -145,7 +145,7 @@ void ArduCAM_Mini::singleCapture(void)
 
         grabber->sendByte(0xFF);
         grabber->sendByte(0xD9);
-        done = true;
+        return true;
     }
 }
 

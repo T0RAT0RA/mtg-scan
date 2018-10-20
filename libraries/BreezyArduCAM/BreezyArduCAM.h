@@ -50,7 +50,7 @@ class ArduCAM_Mini {
          * of implementing class.
          */
         void capture(void);
-        void singleCapture(void);
+        bool singleCapture(void);
 
     protected:
 
