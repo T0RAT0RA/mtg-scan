@@ -168,7 +168,7 @@ def main():
 
     index = 1
     while(1):
-        path = CAPTURES + str(index) + CARD_EXT;
+        path = CAPTURES + str(index) + CARD_EXT
 
         capture_card(port, path)
 
