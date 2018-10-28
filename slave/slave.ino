@@ -12,7 +12,7 @@ const int MOTOR_CARD_BACKWARD_TIME = 130; //ms
 const int SERVO_CARD = 2;
 const int SERVO_CLOSE = 60;
 const int SERVO_OPEN = 130;
-const int SERVO_OPEN_TIME = 250; //ms
+const int SERVO_OPEN_TIME = 300; //ms
 
 // SERIAL
 const long SERIAL_SPEED = 921600; //921600

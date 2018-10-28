@@ -18,6 +18,9 @@ const int LED_WHITE = A1;
 const int LED_YELLOW = A2;
 const int LED_BLUE = A3;
 
+// SENSORS
+const int SERVO_CARD_SENSOR = 8;
+
 // CONST
 const int SEND_CARD = 1;
 const int OPEN_SERVO = 2;
@@ -61,6 +64,8 @@ void setup(void)
   pinMode(BUTTON_B, INPUT_PULLUP);
   pinMode(BUTTON_C, INPUT_PULLUP);
   pinMode(BUTTON_D, INPUT_PULLUP);
+  
+  pinMode(SERVO_CARD_SENSOR, INPUT);
 
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_WHITE, OUTPUT);
@@ -136,22 +141,26 @@ void loop(void)
           cardColor = CARD_NONE;
           sendCard();
           state = Capture;
+          printLcdLine("Waiting card...", 2);
         }
         break;
       case Capture:
         {
-          if (!captureCard()) {
-            cardColor = CARD_UNKNOWN;
-            state = Sort;
-          } else {
-            state = Analyze;
+          // Start capture only when card is detected
+          if (isCardReady()) {
+            if (!captureCard()) {
+              cardColor = CARD_UNKNOWN;
+              state = Sort;
+            } else {
+              state = Analyze;
+            }
           }
         }
         break;
       case Analyze:
         {
-          analyzeCard();
-          state = Sort;
+            analyzeCard();
+            state = Sort;
         }
         break;
       case Sort:
@@ -190,6 +199,10 @@ void sendCard(void)
   delay(1000);
   clearLcdLine(1);
   digitalWrite(LED_WHITE, LOW);
+}
+
+bool isCardReady(void) {
+  return digitalRead(SERVO_CARD_SENSOR) == LOW;
 }
 
 bool captureCard(void)
@@ -273,12 +286,13 @@ void sortCard(void)
 
 void buttonA()
 {
-  if (digitalRead(BUTTON_A) == HIGH) {
+  if (modeAuto && digitalRead(BUTTON_A) == HIGH) {
     modeAuto = false;
     state = Send;
     digitalWrite(LED_GREEN, LOW);
+    lcd.clear();
     printLcdLine("Mode: manual", 0);
-  } else {
+  } else if (!modeAuto && digitalRead(BUTTON_A) == LOW) {
     modeAuto = true;
     digitalWrite(LED_GREEN, HIGH);
     printLcdLine("Mode: auto", 0);
