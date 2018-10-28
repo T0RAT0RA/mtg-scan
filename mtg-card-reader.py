@@ -13,6 +13,8 @@ BAUD = 921600
 CAPTURE_FOLDER = './captures/'
 CARD_EXT = '.jpg'
 
+CARD_UNKNOWN = 'X'
+SERIAL_DELIMITER = "|"
 
 def rename_file(path, name):
     if not os.path.isfile(path):
@@ -44,7 +46,7 @@ def analyze_card(path):
         lines = [line for line in response['TextDetections'] if line['Type'] == 'LINE']
         if lines:
             name = lines[0]['DetectedText']
-            colors = []
+            colors = [CARD_UNKNOWN]
             error = None
             # edition = lines[-1]['DetectedText']
             print('Name detected: %s' % name)
@@ -116,17 +118,6 @@ def capture_card(port, path):
 def sendbyte(port, value):
     port.write(bytearray([value]))
 
-
-CARD_NONE = 0
-CARD_UNKNOWN = -1
-CARD_RED = 1
-CARD_GREEN = 2
-CARD_BLUE = 3
-CARD_BLACK = 4
-CARD_WHITE = 5
-CARD_COLORLESS = 6
-CARD_OTHER = 7
-
 # main  --------------------------------------------------------------------------
 cards = {
   'success': [],
@@ -176,16 +167,24 @@ def main():
             card_meta = analyze_card(path)
         except Exception as e:
             print(str(e))
-            continue
+            card_meta = {
+                "name": "Card not found",
+                "colors": [CARD_UNKNOWN],
+                "error": "Card not found",
+            }
 
 
         try:
-            color = card_meta['colors'][0]
+            color = card_meta['colors']
         except Exception as e:
             color = 'X'
 
-        print('Sending %s' % color)
-        port.write(color.encode())
+
+        # port.write(bytearray[42])
+        print('Sending %s' % str.encode(card_meta['name'] + SERIAL_DELIMITER))
+        port.write(str.encode(card_meta['name'] + SERIAL_DELIMITER))
+        print('Sending %s' % str.encode("".join(color) + SERIAL_DELIMITER))
+        port.write(str.encode("".join(color) + SERIAL_DELIMITER))
 
         if (card_meta['error']):
             cards['error'].append(card_meta)
@@ -219,8 +218,8 @@ def printStatus():
         print('%s x%i' % (card, len(list(group))))
     print('---------')
 
+import atexit
+atexit.register(printStatus)
+
 if __name__ == '__main__':
-    try:
-        main()
-    except click.Abort:
-        printStatus()
+    main()

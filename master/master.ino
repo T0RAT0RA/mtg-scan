@@ -27,6 +27,7 @@ const long SERIAL_SPEED = 921600; //921600
 const int ARDUINO_ADDRESS = 8;
 const int SLAVE_ADDRESS = 8;
 const uint8_t LCD_ADDRESS = 0x3F;
+char *SERIAL_DELIMITER = '|';
 
 // CARD COLORS
 const char CARD_NONE = 'N';
@@ -118,27 +119,16 @@ void sendToSlave(byte value)
   Wire.write(value);
   Wire.endTransmission();
 }
-unsigned long startcaptureTime;
 
 bool modeAuto = false;
 char cardColor = CARD_NONE;
 void loop(void)
 {
+  buttonA();
   buttonB();
   buttonC();
   buttonD();
-
-  if (digitalRead(BUTTON_A) == HIGH) {
-    modeAuto = false;
-    state = Send;
-    digitalWrite(LED_GREEN, LOW);
-    printLcdLine("Mode: manual", 0);
-  } else {
-    modeAuto = true;
-    digitalWrite(LED_GREEN, HIGH);
-    printLcdLine("Mode: auto", 0);
-  }
-
+    
   if (modeAuto) {
     switch (state) {
       case Send:
@@ -161,6 +151,7 @@ void loop(void)
       case Analyze:
         {
           analyzeCard();
+          state = Sort;
         }
         break;
       case Sort:
@@ -209,8 +200,6 @@ bool captureCard(void)
   clearLcdLine(3);
   printLcdLine("Capturing card...", 1);
   bool status = cardCam.singleCapture();
-  //bool status = true;
-  //delay(1000);
   if (!status) {
     printLcdLine("Capture error!", 2);
   } else {
@@ -223,39 +212,57 @@ bool captureCard(void)
 }
 
 bool analyzing = false;
+char card[21];
+char colors[21];
+String serialIn;
+unsigned long startAnalyzeTime;
+const int ANALYZE_TIMEOUT = 5000;
 void analyzeCard(void)
 {
   if (!analyzing) {
     digitalWrite(LED_YELLOW, HIGH);
     analyzing = true;
     clearLcdLine(1);
-    clearLcdLine(2);
-    clearLcdLine(3);
-    printLcdLine("Analyzing card...", 1);
+    printLcdLine("Analyzing card.", 1);
+    card[0] = '\0';
+    colors[0] = '\0';
+    startAnalyzeTime = millis();
   }
-  delay(1000);
-  //if (analyzing && Serial.available()) {
-    //String color = Serial.readString();
-  if (analyzing) {
-    char color = "R";
+  
+  while (analyzing) {
+    printLcdLine("Analyzing card..", 1);
+    if (card[0] == '\0' && Serial.available()) {
+      printLcdLine("Analyzing card...", 1);
+      serialIn = Serial.readStringUntil(SERIAL_DELIMITER);
+      serialIn.replace(SERIAL_DELIMITER, "");
+      serialIn.toCharArray(card, 21);
+      printLcdLine(card, 2);
+      clearLcdLine(3);
+    } else if (card[0] != '\0' && colors[0] == '\0' && Serial.available()) {
+      printLcdLine("Analyzing card....", 1);
+      serialIn = Serial.readStringUntil(SERIAL_DELIMITER);
+      serialIn.replace(SERIAL_DELIMITER, "");
+      serialIn.toCharArray(colors, 21);
+      printLcdLine(colors, 3);
+      analyzing = false;
+    }
     
-    state = Sort;
-    
-    char cardMsg[21];
-    sprintf(cardMsg, "Card is: %c", color);
-    printLcdLine(cardMsg, 3);
-    clearLcdLine(1);
-    analyzing = false;
-    digitalWrite(LED_YELLOW, LOW);
+    if (millis() - startAnalyzeTime >= ANALYZE_TIMEOUT){
+      analyzing = false;
+      printLcdLine("Analyze timeout", 2);
+    }
   }
+  
+  clearLcdLine(1);
+  card[0] = '\0';
+  colors[0] = '\0';
+  digitalWrite(LED_YELLOW, LOW);
 }
 
 void sortCard(void)
 {
   digitalWrite(LED_BLUE, HIGH);
   clearLcdLine(1);
-  clearLcdLine(2);
-  clearLcdLine(3);
   printLcdLine("Sorting card...", 1);
   sendToSlave(OPEN_SERVO);
   delay(500);
@@ -264,21 +271,36 @@ void sortCard(void)
 }
 
 
+void buttonA()
+{
+  if (digitalRead(BUTTON_A) == HIGH) {
+    modeAuto = false;
+    state = Send;
+    digitalWrite(LED_GREEN, LOW);
+    printLcdLine("Mode: manual", 0);
+  } else {
+    modeAuto = true;
+    digitalWrite(LED_GREEN, HIGH);
+    printLcdLine("Mode: auto", 0);
+  }
+}
+
 void buttonB()
 {
   if (digitalRead(BUTTON_B) == LOW) {
     digitalWrite(LED_WHITE, HIGH);
     sendCard();
   } else {
-    
     digitalWrite(LED_WHITE, LOW);
-    }
+  }
 }
 
+bool shouldAnalyse = false;
 void buttonC()
 {
   if (digitalRead(BUTTON_C) == LOW) {
     captureCard();
+    analyzeCard();
   }
 }
 
