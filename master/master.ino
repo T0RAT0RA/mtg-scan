@@ -73,6 +73,9 @@ void setup(void)
   pinMode(LED_BLUE, OUTPUT);
 
   intro();
+  
+  lcd.clear();
+  printLcdLine("Mode: manual", 0);
 }
 
 void intro(void){
@@ -229,7 +232,7 @@ char card[21];
 char colors[21];
 String serialIn;
 unsigned long startAnalyzeTime;
-const int ANALYZE_TIMEOUT = 5000;
+const int ANALYZE_TIMEOUT = 4500;
 void analyzeCard(void)
 {
   if (!analyzing) {

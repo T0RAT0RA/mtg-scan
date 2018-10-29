@@ -7,7 +7,7 @@ Servo cardServo;
 const int MOTOR_CARD_FORWARD = 9;
 const int MOTOR_CARD_BACKWARD = 10;
 const int MOTOR_CARD_PWM = 11;
-const int MOTOR_CARD_FORWARD_TIME = 600; //ms
+const int MOTOR_CARD_FORWARD_TIME = 650; //ms
 const int MOTOR_CARD_BACKWARD_TIME = 130; //ms
 const int SERVO_CARD = 2;
 const int SERVO_CLOSE = 60;
