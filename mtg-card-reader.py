@@ -24,9 +24,9 @@ def rename_file(path, name):
 
     folder = os.path.dirname(path)
     card_count = [f for f in os.listdir(folder) if re.search(r'[0-9]+' + name + '[0-9]+' + CARD_EXT, f)]
-    name = name + str(len(card_count) + 1)
+    name = '-' + name + '-{0:03d}'.format(len(card_count) + 1)
     new_filename = re.sub(CARD_EXT, name + CARD_EXT, path)
-    print('Renaming %s to % s' % (path, new_filename))
+    #print('Renaming %s to % s' % (path, new_filename))
     os.rename(path, new_filename)
 
 def analyze_card(path):
@@ -49,16 +49,30 @@ def analyze_card(path):
             colors = [CARD_UNKNOWN]
             error = None
             # edition = lines[-1]['DetectedText']
-            print('Name detected: %s' % name)
+            click.echo('Name detected: %s' % name)
 
             try:
                 card = scrython.cards.Named(exact=name)
+                name = card.name()
                 colors = card.color_identity()
                 rename_file(path, name)
-                print('Card found. Colors: %s' % colors)
+
+                click.echo('Card found: ', nl=False)
+                click.secho(name, fg='green')
+                click.echo('Colors: ', nl=False)
+                colors_mapping = {
+                    'U': {'bg': 'blue'},
+                    'R': {'bg': 'red'},
+                    'W': {'bg': 'white', 'fg': 'black'},
+                    'G': {'bg': 'green'},
+                    'B': {'bg': 'black'},
+                }
+                colors_text = [click.style(c, **colors_mapping[c]) for c in colors]
+                click.echo('[{}]'.format(', '.join(colors_text)))
             except Exception as e:
                 error = str(e)
-                print('Card not found. %s' % str(e))
+                click.secho('Card not found: ')
+                click.secho(error, fg='red')
 
             duration = (arrow.now() - start_analyze).seconds
             print('Analyze done in %is.' % duration)
@@ -155,11 +169,9 @@ def main():
 
     print('Creating capture folder: %s' % CAPTURES)
 
-    print('Ready.')
-
     index = 1
     while(1):
-        path = CAPTURES + str(index) + CARD_EXT
+        path = CAPTURES + '{0:03d}'.format(index) + CARD_EXT
 
         capture_card(port, path)
 
@@ -180,43 +192,31 @@ def main():
             color = 'X'
 
 
-        # port.write(bytearray[42])
-        print('Sending %s' % str.encode(card_meta['name'] + SERIAL_DELIMITER))
+        # print('Sending %s' % str.encode(card_meta['name'] + SERIAL_DELIMITER))
         port.write(str.encode(card_meta['name'] + SERIAL_DELIMITER))
-        print('Sending %s' % str.encode("".join(color) + SERIAL_DELIMITER))
+        # print('Sending %s' % str.encode("".join(color) + SERIAL_DELIMITER))
         port.write(str.encode("".join(color) + SERIAL_DELIMITER))
 
         if (card_meta['error']):
             cards['error'].append(card_meta)
         else:
             cards['success'].append(card_meta)
-        # if len(response) == 1 and ord(response) == 42:
-        #     print('CARD DETECTED.')
-        #     # time.sleep(1);
-        #     color = random.choice([
-        #         CARD_RED,
-        #         CARD_GREEN,
-        #         CARD_BLUE,
-        #         CARD_BLACK,
-        #         CARD_WHITE,
-        #     ])
-        #     print('CARD ANALYSED: %s' % color)
-        #     sendbyte(port, 43)
-        #     sendbyte(port, color)
-        # else:
-        #     print(response)
         index = index + 1
 
 def printStatus():
-    print('---------')
-    print('Card scanned: %i' % len(cards['success']))
+    click.secho('---------------', fg='yellow')
+    click.echo('Card scanned: ', nl=False)
+    click.secho(str(len(cards['success'])), fg='green')
     if len(cards['error']):
-        print('Card with errors: %i' % len(cards['error']))
+        click.echo('Card with errors: ', nl=False)
+        click.secho(str(len(cards['error'])), fg='red')
 
-    print('Card list:')
+        click.echo('Card list:')
     for card, group in itertools.groupby(cards['success'], key=lambda x:x['name']):
-        print('%s x%i' % (card, len(list(group))))
-    print('---------')
+        click.echo('  {}'.format(len(list(group))), nl=False)
+        click.secho(' {}'.format(card), fg='cyan')
+
+    click.secho('---------------', fg='yellow')
 
 import atexit
 atexit.register(printStatus)
