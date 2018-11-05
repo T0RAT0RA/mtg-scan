@@ -199,7 +199,7 @@ void sendCard(void)
   clearLcdLine(3);
   printLcdLine("Sending card...", 1);
   sendToSlave(SEND_CARD);
-  delay(1000);
+  delay(500);
   clearLcdLine(1);
   digitalWrite(LED_WHITE, LOW);
 }

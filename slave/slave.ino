@@ -7,8 +7,10 @@ Servo cardServo;
 const int MOTOR_CARD_FORWARD = 9;
 const int MOTOR_CARD_BACKWARD = 10;
 const int MOTOR_CARD_PWM = 11;
-const int MOTOR_CARD_FORWARD_TIME = 650; //ms
-const int MOTOR_CARD_BACKWARD_TIME = 130; //ms
+const int MOTOR_CARD_FORWARD_TIME = 400; //ms
+const int MOTOR_CARD_FORWARD_POWER = 110; //0 to 255
+const int MOTOR_CARD_BACKWARD_TIME = 120; //ms
+const int MOTOR_CARD_BACKWARD_POWER = 210; //0 to 255
 const int SERVO_CARD = 2;
 const int SERVO_CLOSE = 60;
 const int SERVO_OPEN = 130;
@@ -66,7 +68,7 @@ void sendCardtoAnalyse(void)
     serving_card_start = millis();
     analogWrite(MOTOR_CARD_FORWARD, 255);
     analogWrite(MOTOR_CARD_BACKWARD, 0);
-    analogWrite(MOTOR_CARD_PWM, 90);
+    analogWrite(MOTOR_CARD_PWM, MOTOR_CARD_FORWARD_POWER);
   }
 
   if (serving_new_card && (millis() - serving_card_start) > MOTOR_CARD_FORWARD_TIME) {
@@ -74,7 +76,7 @@ void sendCardtoAnalyse(void)
     prepare_new_card = true;
     analogWrite(MOTOR_CARD_FORWARD, 0);
     analogWrite(MOTOR_CARD_BACKWARD, 255);
-    analogWrite(MOTOR_CARD_PWM, 255);
+    analogWrite(MOTOR_CARD_PWM, MOTOR_CARD_BACKWARD_POWER);
   }
 
   if (prepare_new_card && (millis() - serving_card_start) > MOTOR_CARD_FORWARD_TIME + MOTOR_CARD_BACKWARD_TIME) {

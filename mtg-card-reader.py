@@ -23,7 +23,7 @@ def rename_file(path, name):
 
 
     folder = os.path.dirname(path)
-    card_count = [f for f in os.listdir(folder) if re.search(r'[0-9]+' + name + '[0-9]+' + CARD_EXT, f)]
+    card_count = [f for f in os.listdir(folder) if re.search(r'[0-9]+-' + name + '-[0-9]+' + CARD_EXT, f)]
     name = '-' + name + '-{0:03d}'.format(len(card_count) + 1)
     new_filename = re.sub(CARD_EXT, name + CARD_EXT, path)
     #print('Renaming %s to % s' % (path, new_filename))
@@ -49,7 +49,8 @@ def analyze_card(path):
             colors = [CARD_UNKNOWN]
             error = None
             # edition = lines[-1]['DetectedText']
-            click.echo('Name detected: %s' % name)
+            click.echo('Name detected: ', nl=False)
+            click.secho(name, fg='yellow')
 
             try:
                 card = scrython.cards.Named(exact=name)
@@ -57,7 +58,7 @@ def analyze_card(path):
                 colors = card.color_identity()
                 rename_file(path, name)
 
-                click.echo('Card found: ', nl=False)
+                click.echo('Card found:    ', nl=False)
                 click.secho(name, fg='green')
                 click.echo('Colors: ', nl=False)
                 colors_mapping = {
