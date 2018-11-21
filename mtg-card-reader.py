@@ -6,7 +6,6 @@ import arrow, click
 import boto3, scrython
 import serial
 import serial.tools.list_ports
-from sys import stdout
 
 
 BAUD = 921600
@@ -16,9 +15,10 @@ CARD_EXT = '.jpg'
 CARD_UNKNOWN = 'X'
 SERIAL_DELIMITER = "|"
 
-def rename_file(path, name):
+def rename_file(path, name, debug=False):
     if not os.path.isfile(path):
-        print('File %s does not exist, skipping.' % path)
+        if debug:
+            print('File %s does not exist, skipping.' % path)
         return False
 
 
@@ -29,8 +29,9 @@ def rename_file(path, name):
     #print('Renaming %s to % s' % (path, new_filename))
     os.rename(path, new_filename)
 
-def analyze_card(path):
-    print('\nStart analyzing card')
+def analyze_card(path, debug=False):
+    if debug:
+        print('\nStart analyzing card')
     start_analyze = arrow.now()
     with open(path, 'rb') as content_file:
         image = content_file.read()
@@ -45,22 +46,23 @@ def analyze_card(path):
     if response['TextDetections']:
         lines = [line for line in response['TextDetections'] if line['Type'] == 'LINE']
         if lines:
-            name = lines[0]['DetectedText']
+            name_found = lines[0]['DetectedText']
             colors = [CARD_UNKNOWN]
+            colors_text = []
+            price = None
             error = None
             # edition = lines[-1]['DetectedText']
-            click.echo('Name detected: ', nl=False)
-            click.secho(name, fg='yellow')
+            # if debug:
+            #     click.echo('Name found: ', nl=False)
+            #     click.secho(name_found, fg='yellow')
 
             try:
-                card = scrython.cards.Named(exact=name)
+                card = scrython.cards.Named(exact=name_found)
                 name = card.name()
+                price = card.currency('usd')
                 colors = card.color_identity()
-                rename_file(path, name)
+                rename_file(path, name, debug)
 
-                click.echo('Card found:    ', nl=False)
-                click.secho(name, fg='green')
-                click.echo('Colors: ', nl=False)
                 colors_mapping = {
                     'U': {'bg': 'blue'},
                     'R': {'bg': 'red'},
@@ -69,27 +71,35 @@ def analyze_card(path):
                     'B': {'bg': 'black'},
                 }
                 colors_text = [click.style(c, **colors_mapping[c]) for c in colors]
-                click.echo('[{}]'.format(', '.join(colors_text)))
             except Exception as e:
                 error = str(e)
-                click.secho('Card not found: ')
-                click.secho(error, fg='red')
+                name = 'Card not found'
+                if debug:
+                    click.secho('Card not found: ')
+                    click.secho(error, fg='red')
+
+            fg = 'green' if error is None else 'red'
+            printRow((name_found, (name, fg), '[{}]'.format(', '.join(colors)), price))
 
             duration = (arrow.now() - start_analyze).seconds
-            print('Analyze done in %is.' % duration)
+            if debug:
+                print('Analyze done in %is.' % duration)
             return {
                 'name': name,
                 'colors': colors,
                 'error': error
             }
         else:
+            click.echo('%-20s' % (click.style("No lines found.", fg='red')))
             raise Exception('No lines found.')
     else:
+        click.echo('%-20s' % (click.style("No text found.", fg='red')))
         raise Exception('No text found.')
 
 
-def capture_card(port, path):
-    print('\nWaiting capture...')
+def capture_card(port, path, debug=False):
+    if debug:
+        print('\nWaiting capture...')
 
     # Loop over bytes from Arduino for a single image
     written = False
@@ -106,7 +116,8 @@ def capture_card(port, path):
 
             # Start-of-image sentinel bytes: write previous byte to temp file
             if ord(currbyte) == 0xd8 and ord(prevbyte) == 0xff:
-                print('Start capturing.')
+                if debug:
+                    print('Start capturing.')
                 start_capturing = arrow.now()
                 # Open output file
                 outfile = open(path, 'wb')
@@ -126,12 +137,31 @@ def capture_card(port, path):
         prevbyte = currbyte
 
     duration = (arrow.now() - start_capturing).seconds
-    print('Capture done in %is.' % duration)
+    if debug:
+        print('Capture done in %is.' % duration)
     return True
 
 # helpers  --------------------------------------------------------------------------
 def sendbyte(port, value):
     port.write(bytearray([value]))
+
+columns_padding = (28, 28, 20, 10)
+truncated_string = '...'
+def printRow(row):
+    for i, col in enumerate(row):
+        max_length = columns_padding[i]
+        text = col
+        fg = None
+        if type(col) == tuple:
+            text = col[0]
+            fg = col[1]
+        text = (text[:max_length - len(truncated_string)] + truncated_string) if len(text) > max_length else text
+        text = text + ' ' * (max_length - len(text))
+
+        # print('%s|%s|%s' % (max_length, len(text), padding))
+        click.secho(text, fg=fg, nl=False)
+
+    print('')
 
 # main  --------------------------------------------------------------------------
 cards = {
@@ -140,7 +170,10 @@ cards = {
 }
 
 @click.command()
-def main():
+@click.option('--debug', default=False, is_flag=True)
+def main(debug):
+    DEBUG = debug
+
     # Find Arduino port
     arduino_ports = [
         p.device
@@ -168,18 +201,21 @@ def main():
     if not os.path.exists(CAPTURES):
         os.makedirs(CAPTURES)
 
-    print('Creating capture folder: %s' % CAPTURES)
+    if debug:
+        print('Creating capture folder: %s' % CAPTURES)
 
     index = 1
+    printRow(('TEXT', 'CARD', 'COLORS', 'USD'))
     while(1):
         path = CAPTURES + '{0:03d}'.format(index) + CARD_EXT
 
-        capture_card(port, path)
+        capture_card(port, path, debug)
 
         try:
-            card_meta = analyze_card(path)
+            card_meta = analyze_card(path, debug)
         except Exception as e:
-            print(str(e))
+            if debug:
+                print(str(e))
             card_meta = {
                 "name": "Card not found",
                 "colors": [CARD_UNKNOWN],
@@ -193,9 +229,11 @@ def main():
             color = 'X'
 
 
-        # print('Sending %s' % str.encode(card_meta['name'] + SERIAL_DELIMITER))
+        if debug:
+            print('Sending %s' % str.encode(card_meta['name'] + SERIAL_DELIMITER))
         port.write(str.encode(card_meta['name'] + SERIAL_DELIMITER))
-        # print('Sending %s' % str.encode("".join(color) + SERIAL_DELIMITER))
+        if debug:
+            print('Sending %s' % str.encode("".join(color) + SERIAL_DELIMITER))
         port.write(str.encode("".join(color) + SERIAL_DELIMITER))
 
         if (card_meta['error']):
@@ -205,7 +243,7 @@ def main():
         index = index + 1
 
 def printStatus():
-    click.secho('---------------', fg='yellow')
+    click.secho('---------------------------------------------', fg='yellow')
     click.echo('Card scanned: ', nl=False)
     click.secho(str(len(cards['success'])), fg='green')
     if len(cards['error']):
@@ -217,7 +255,7 @@ def printStatus():
         click.echo('  {}'.format(len(list(group))), nl=False)
         click.secho(' {}'.format(card), fg='cyan')
 
-    click.secho('---------------', fg='yellow')
+    click.secho('---------------------------------------------', fg='yellow')
 
 import atexit
 atexit.register(printStatus)
