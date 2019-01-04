@@ -1,3 +1,5 @@
 venv
 captures/*
-!captures/.gitkeep 
+!captures/.gitkeep
+.idea
+.vscode
