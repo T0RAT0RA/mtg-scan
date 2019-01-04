@@ -1,16 +1,32 @@
+#!/usr/bin/env python3
+'''
+jpgstream.py : display live ArduCAM JPEG images using OpenCV
+
+Copyright (C) Simon D. Levy 2017
+
+This file is part of BreezyArduCAM.
+
+BreezyArduCAM is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+BreezyArduCAM is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with BreezyArduCAM.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import time
 import serial
-from PIL import Image
+import serial.tools.list_ports
 from sys import stdout
+from PIL import Image
 
-# Modifiable params -------------------------------------------------------------------
-
-PORT = '/dev/ttyACM0' # Ubuntu
-#PORT = 'COM9'         # Windows
-
+# Modifiable params --------------------------------------------------------------------
 BAUD = 921600       # Change to 115200 for Due
-
-OUTFILENAME = 'test.bmp'
 
 # helpers  --------------------------------------------------------------------------
 
@@ -31,66 +47,83 @@ def ackcheck(port, msg):
     line = port.readline().decode()
     assert(msg in line)
 
-
-# BMP header for 320x240 image ------------------------------------------------------
-#
-# See: http://www.fastgraph.com/help/bmp_header_format.html
-# See: https://upload.wikimedia.org/wikipedia/commons/c/c4/BMPfileFormat.png
-
-header = [
-    0x42, 0x4D,             # signature, must be 4D42 hex
-    0x36, 0x58, 0x02, 0x00, # size of BMP file in bytes (unreliable)
-    0x00, 0x00,             # reserved, must be zero
-    0x00, 0x00,             # reserved, must be zero
-    0x42, 0x00, 0x00, 0x00, # offset to start of image data in bytes
-    0x28, 0x00, 0x00, 0x00, # size of BITMAPINFOHEADER structure, must be 40
-    0x40, 0x01, 0x00, 0x00, # image width in pixels
-    0xF0, 0x00, 0x00, 0x00, # image height in pixels
-    0x01, 0x00,             # number of planes in the image, must be 1
-    0x10, 0x00,             # number of bits per pixel
-    0x03, 0x00, 0x00, 0x00, # compression type
-    0x00, 0x58, 0x02, 0x00, # size of image data in bytes (including padding)
-    0xC4, 0x0E, 0x00, 0x00, # horizontal resolution in pixels per meter (unreliable)
-    0xC4, 0x0E, 0x00, 0x00, # vertical resolution in pixels per meter (unreliable)
-    0x00, 0x00, 0x00, 0x00, # number of colors in image, or zero
-    0x00, 0x00, 0x00, 0x00, # number of important colors, or zero
-    0x00, 0xF8, 0x00, 0x00, # red channel bitmask
-    0xE0, 0x07, 0x00, 0x00, # green channel bitmask
-    0x1F, 0x00, 0x00, 0x00  # blue channel bitmask
-]
-
-def capture_img():
-    print('\nStart capturing')
+OUTFILENAME = './card'
+def capture_card(cardIndex):
+    print('\nWait camera')
     # Send "start capture" message
-    sendbyte(port, 1)
 
     # Open output file
-    outfile = open(OUTFILENAME, 'wb')
+    outfile = open(OUTFILENAME + str(cardIndex) + '.jpg', 'wb')
 
-    # Write BMP header
-    outfile.write(bytearray(header))
+    # Loop over bytes from Arduino for a single image
+    written = False
+    prevbyte = None
+    done = False
+    while not done:
 
-    # Read bytes from serial and write them to file
-    for k in range(320*240*2):
-        c = outfile.write(port.read())
+        # Read a byte from Arduino
+        currbyte = port.read(1)
+
+
+        # If we've already read one byte, we can check pairs of bytes
+        if prevbyte:
+
+            # Start-of-image sentinel bytes: write previous byte to temp file
+            if ord(currbyte) == 0xd8 and ord(prevbyte) == 0xff:
+                outfile.write(prevbyte)
+                written = True
+
+            # Inside image, write current byte to file
+            if written:
+                outfile.write(currbyte)
+
+            # End-of-image sentinel bytes: close temp file and display its contents
+            if ord(currbyte) == 0xd9 and ord(prevbyte) == 0xff:
+                outfile.close()
+                done = True
+
+        # Track previous byte
+        prevbyte = currbyte
 
     # Send "stop" message
-    sendbyte(port, 0)
-
-    # Close output file
-    outfile.close()
-
-    im1 = Image.open(OUTFILENAME)
-    im2 = im1.rotate(180)
-    im2.save(OUTFILENAME)
+    #sendbyte(port, 0)
 
     print('\nDone capturing')
+
+
+def average_image_color(filename):
+    i = Image.open(filename)
+    h = i.histogram()
+
+    # split into red, green, blue
+    r = h[0:256]
+    g = h[256:256*2]
+    b = h[256*2: 256*3]
+
+    # perform the weighted average of each channel:
+    # the *index* is the channel value, and the *value* is its weight
+    return (
+        sum( i*w for i, w in enumerate(r) ) / sum(r),
+        sum( i*w for i, w in enumerate(g) ) / sum(g),
+        sum( i*w for i, w in enumerate(b) ) / sum(b)
+    )
 # main ------------------------------------------------------------------------------
 
 if __name__ == '__main__':
+    # Find Arduino port
+    arduino_ports = [
+        p.device
+        for p in serial.tools.list_ports.comports()
+        if p.manufacturer is not None and 'Arduino' in p.manufacturer
+    ]
+
+    if not arduino_ports:
+        raise IOError("No Arduino found")
+    if len(arduino_ports) > 1:
+        warnings.warn('Multiple Arduinos found - using the first')
 
     # Open connection to Arduino with a timeout of two seconds
-    port = serial.Serial(PORT, BAUD, timeout=2)
+    port = serial.Serial(arduino_ports[0], BAUD, timeout=None)
 
     # Report acknowledgment from camera
     getack(port)
@@ -98,11 +131,10 @@ if __name__ == '__main__':
     # Wait a spell
     time.sleep(0.2)
 
+    INDEX = 0
     while(1):
-        response = port.readline()
-        if (response == b'CARD DETECTED\r\n'):
-            print('CARD DETECTED.')
-            capture_img()
-        else:
-            print(response)
+        #input('Press enter to capture img')
+        capture_card(INDEX + 1)
+        #print("TEST")#average_image_color(OUTFILENAME))
         time.sleep(0.1)
+        INDEX = INDEX + 1
