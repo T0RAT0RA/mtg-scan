@@ -3,21 +3,23 @@
 #include <LiquidCrystal_I2C.h>
 #include <SPI.h>
 #include <Servo.h>
+#include <LED.h>
+#include <Button.h>
 
 // CAMERA
 const int CS_CAM = 23;
 
 // BUTTONS
-const int BUTTON_A = 48;
-const int BUTTON_B = 46;
-const int BUTTON_C = 44;
-const int BUTTON_D = 42;
+Button buttonA = Button(48, INTERNAL_PULLUP);
+Button buttonB = Button(46, INTERNAL_PULLUP);
+Button buttonC = Button(44, INTERNAL_PULLUP);
+Button buttonD = Button(42, INTERNAL_PULLUP);
 
 // LEDS
-const int LED_GREEN = 49;
-const int LED_WHITE = 47;
-const int LED_YELLOW = 45;
-const int LED_BLUE = 43;
+LED ledGreen = LED(49);
+LED ledWhite = LED(47);
+LED ledYellow = LED(45);
+LED ledBlue = LED(43);
 
 // SENSORS
 const int SERVO_CARD_SENSOR = 8;
@@ -77,17 +79,7 @@ void setup(void)
   lcd.backlight();
 
   // Setup pinouts
-  pinMode(BUTTON_A, INPUT_PULLUP);
-  pinMode(BUTTON_B, INPUT_PULLUP);
-  pinMode(BUTTON_C, INPUT_PULLUP);
-  pinMode(BUTTON_D, INPUT_PULLUP);
-
   pinMode(SERVO_CARD_SENSOR, INPUT);
-
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_WHITE, OUTPUT);
-  pinMode(LED_YELLOW, OUTPUT);
-  pinMode(LED_BLUE, OUTPUT);
 
   pinMode(MOTOR_CARD_FORWARD, OUTPUT);
   pinMode(MOTOR_CARD_BACKWARD, OUTPUT);
@@ -109,33 +101,33 @@ void setup(void)
 
 void intro(void){
   int i, j;
-  int leds[] = {LED_GREEN, LED_WHITE, LED_YELLOW, LED_BLUE};
+  LED leds[] = {ledGreen, ledWhite, ledYellow, ledBlue};
   for (i = 0; i < 4; i++) {
     if (i > 0) {
-      digitalWrite(leds[i-1], LOW);
+      leds[i-1].off();
     }
-    digitalWrite(leds[i], HIGH);
+    leds[i].on();
     delay(70);
   }
   for (i = 3; i >= 0 ; i--) {
     if (i < 4) {
-      digitalWrite(leds[i+1], LOW);
+      leds[i+1].off();
     }
-    digitalWrite(leds[i], HIGH);
+    leds[i].on();
     delay(70);
   }
   for (i = 0; i < 4; i++) {
-    digitalWrite(leds[i], HIGH);
+    leds[i].on();
     delay(70);
   }
 
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
-      digitalWrite(leds[j], HIGH);
+      leds[j].on();
     }
     delay(100);
     for (j = 0; j < 4; j++) {
-      digitalWrite(leds[j], LOW);
+      leds[j].off();
     }
     delay(100);
   }
@@ -149,62 +141,6 @@ enum states {
   Sort
 };
 states state = Send;
-
-void sendToSlave(byte value)
-{
-  // Wire.beginTransmission(SLAVE_ADDRESS);
-  // Wire.write(value);
-  // Wire.endTransmission();
-}
-
-bool modeAuto = false;
-char cardColor = CARD_NONE;
-void loop(void)
-{
-  buttonA();
-  buttonB();
-  buttonC();
-  buttonD();
-
-  if (modeAuto) {
-    switch (state) {
-      case Send:
-        {
-          cardColor = CARD_NONE;
-          sendCard();
-          state = Capture;
-          printLcdLine("Waiting card...", 2);
-        }
-        break;
-      case Capture:
-        {
-          // Start capture only when card is detected
-          if (isCardReady()) {
-            if (!captureCard()) {
-              cardColor = CARD_UNKNOWN;
-              state = Sort;
-            } else {
-              state = Analyze;
-            }
-          }
-        }
-        break;
-      case Analyze:
-        {
-            analyzeCard();
-            state = Sort;
-        }
-        break;
-      case Sort:
-        {
-          sortCard();
-          state = Send;
-        }
-        break;
-    }
-  }
-
-}
 
 void printLcdLine(char message[], int line)
 {
@@ -222,16 +158,15 @@ void clearLcdLine(int line)
 
 void sendCard(void)
 {
-  digitalWrite(LED_WHITE, HIGH);
+  ledWhite.on();
   clearLcdLine(1);
   clearLcdLine(2);
   clearLcdLine(3);
   printLcdLine("Sending card...", 1);
-  // sendToSlave(SEND_CARD);
   sendCardtoAnalyse();
   delay(500);
   clearLcdLine(1);
-  digitalWrite(LED_WHITE, LOW);
+  ledWhite.off();
 }
 
 bool isCardReady(void) {
@@ -240,7 +175,7 @@ bool isCardReady(void) {
 
 bool captureCard(void)
 {
-  digitalWrite(LED_YELLOW, HIGH);
+  ledYellow.on();
   clearLcdLine(1);
   clearLcdLine(2);
   clearLcdLine(3);
@@ -252,7 +187,7 @@ bool captureCard(void)
     printLcdLine("Capture success", 2);
   }
   clearLcdLine(1);
-  digitalWrite(LED_YELLOW, LOW);
+  ledYellow.off();
 
   return status;
 }
@@ -266,7 +201,7 @@ const int ANALYZE_TIMEOUT = 4500;
 void analyzeCard(void)
 {
   if (!analyzing) {
-    digitalWrite(LED_YELLOW, HIGH);
+    ledYellow.on();
     analyzing = true;
     clearLcdLine(1);
     printLcdLine("Analyzing card.", 1);
@@ -302,63 +237,19 @@ void analyzeCard(void)
   clearLcdLine(1);
   card[0] = '\0';
   colors[0] = '\0';
-  digitalWrite(LED_YELLOW, LOW);
+  ledYellow.off();
 }
 
 void sortCard(void)
 {
-  digitalWrite(LED_BLUE, HIGH);
+  ledBlue.on();
   clearLcdLine(1);
   printLcdLine("Sorting card...", 1);
-  // sendToSlave(OPEN_SERVO);
   sendCardToSorting();
   delay(500);
   clearLcdLine(1);
-  digitalWrite(LED_BLUE, LOW);
+  ledBlue.off();
 }
-
-
-void buttonA()
-{
-  if (modeAuto && digitalRead(BUTTON_A) == HIGH) {
-    modeAuto = false;
-    state = Send;
-    digitalWrite(LED_GREEN, LOW);
-    lcd.clear();
-    printLcdLine("Mode: manual", 0);
-  } else if (!modeAuto && digitalRead(BUTTON_A) == LOW) {
-    modeAuto = true;
-    digitalWrite(LED_GREEN, HIGH);
-    printLcdLine("Mode: auto", 0);
-  }
-}
-
-void buttonB()
-{
-  if (digitalRead(BUTTON_B) == LOW) {
-    digitalWrite(LED_WHITE, HIGH);
-    sendCard();
-  } else {
-    digitalWrite(LED_WHITE, LOW);
-  }
-}
-
-bool shouldAnalyse = false;
-void buttonC()
-{
-  if (digitalRead(BUTTON_C) == LOW) {
-    captureCard();
-    analyzeCard();
-  }
-}
-
-void buttonD(void) {
-  if (digitalRead(BUTTON_D) == LOW) {
-    sortCard();
-  }
-}
-
-
 
 bool serving_new_card = false;
 bool prepare_new_card = false;
@@ -411,4 +302,78 @@ void sendCardToSorting()
     sorting_card = false;
     cardServo.write(SERVO_CLOSE);
   }
+}
+
+
+bool modeAuto = false;
+char cardColor = CARD_NONE;
+void loop(void)
+{
+
+  if (modeAuto && !buttonA.isPressed()) {
+    modeAuto = false;
+    state = Send;
+    ledGreen.off();
+    lcd.clear();
+    printLcdLine("Mode: manual", 0);
+  } else if (!modeAuto && buttonA.isPressed()) {
+    modeAuto = true;
+    ledGreen.on();
+    printLcdLine("Mode: auto", 0);
+  }
+
+  if (buttonB.isPressed()) {
+    ledWhite.on();
+    sendCard();
+  } else {
+    ledWhite.off();
+  }
+
+  if (buttonC.isPressed()) {
+    captureCard();
+    analyzeCard();
+  }
+
+  if (buttonD.isPressed()) {
+    sortCard();
+  }
+
+  if (modeAuto) {
+    switch (state) {
+      case Send:
+        {
+          cardColor = CARD_NONE;
+          sendCard();
+          state = Capture;
+          printLcdLine("Waiting card...", 2);
+        }
+        break;
+      case Capture:
+        {
+          // Start capture only when card is detected
+          if (isCardReady()) {
+            if (!captureCard()) {
+              cardColor = CARD_UNKNOWN;
+              state = Sort;
+            } else {
+              state = Analyze;
+            }
+          }
+        }
+        break;
+      case Analyze:
+        {
+            analyzeCard();
+            state = Sort;
+        }
+        break;
+      case Sort:
+        {
+          sortCard();
+          state = Send;
+        }
+        break;
+    }
+  }
+
 }
