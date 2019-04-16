@@ -10,6 +10,14 @@ enum CardStorageTiltState {
   none,
 };
 
+const int TILT_LEFT = 55;
+const int TILT_RIGHT = 120;
+const int NO_TILT = 85;
+const int MOVE_FORWARD = 180;
+const int MOVE_BACKWARD = 0;
+const int STOP = 89;
+const int TILT_TIME = 300; //in millisecond
+
 class CardStorage
 {
   public:
@@ -25,13 +33,15 @@ class CardStorage
     void tiltRightWhenCard();
     bool cardDetected();
     void noTilt();
+    CardStorageTiltState getTiltState();
+    void invertDrivingRotation();
   private:
     int _id;
     Servo _servoDriving;
     Servo _servoDirection;
     int _sensorPin;
     CardStorageTiltState _tiltState;
-    long _tiltStart;
+    bool _invertedDrivingRotation = false;
 };
 
 #endif
