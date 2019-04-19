@@ -1,5 +1,6 @@
 class CardStorage:
 
+
   def __init__(self, id, driving_pin, direction_pin, sensor_pin, calibration=None, inverted_driving_rotation=False, board=None):
     self.id = id
     self.board = board
@@ -15,6 +16,8 @@ class CardStorage:
     self.TILT_LEFT = calibration['TILT_LEFT']
     self.TILT_RIGHT = calibration['TILT_RIGHT']
 
+    self.cardDetected = False
+
     self.inverted_driving_rotation = inverted_driving_rotation
 
     self.board.servo_config(self.driving_pin)
@@ -22,7 +25,7 @@ class CardStorage:
     self.board.servo_config(self.direction_pin)
     self.noTilt()
 
-    self.board.enable_analog_reporting(self.sensor_pin)
+    board.set_pin_mode(self.sensor_pin, self.board.INPUT, self.board.ANALOG, self.sensorUpdate)
 
     # pinMode(drivingPin, OUTPUT);
     # pinMode(directionPin, OUTPUT);
@@ -32,10 +35,13 @@ class CardStorage:
     # _servoDirection.attach(directionPin);
     # _sensorPin = sensorPin;
 
-  def cardDetected(self):
-    sensor_value = self.board.analog_read(self.sensor_pin)
-    print("_cardStorage " + self.id + ": cardDetected - {}".format(sensor_value))
-    return sensor_value <= 900
+  def sensorUpdate(self, data):
+    self.cardDetected = data[2] <= 600
+
+  def isCardDetected(self):
+    # sensor_value = self.board.analog_read(self.sensor_pin)
+    # print("_cardStorage " + self.id + ": cardDetected - {}".format(sensor_value))
+    return self.cardDetected
 
   def invertDrivingRotation(self):
     self.inverted_driving_rotation = not self.inverted_driving_rotation

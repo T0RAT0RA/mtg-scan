@@ -2,9 +2,8 @@ import serial, time, arrow
 import serial.tools.list_ports
 from functools import partial
 from signal import pause
-from guizero import App, Text,TextBox, PushButton, Box, yesno, Window, ListBox, Slider
-from pymata_aio.pymata3 import PyMata3
-from pymata_aio.constants import Constants
+from guizero import App, Waffle, Text, TextBox, PushButton, Box, yesno, Window, ListBox, Slider
+from PyMata.pymata import PyMata
 from CardStorageManager import CardStorageManager
 
 board = None
@@ -14,8 +13,8 @@ storages = [
   {
     "id": "A",
     "sensor_pin": 0,
-    "driving_pin": 2,
-    "direction_pin": 3,
+    "driving_pin": 3,
+    "direction_pin": 4,
     "calibration": {
       "MOVE_STOP": 87,
       "TILT_STOP": 80,
@@ -26,8 +25,8 @@ storages = [
   {
     "id": "B",
     "sensor_pin": 1,
-    "driving_pin": 4,
-    "direction_pin": 5,
+    "driving_pin": 5,
+    "direction_pin": 6,
     "inverted_driving_rotation": True,
     "calibration": {
       "MOVE_STOP": 90,
@@ -39,8 +38,8 @@ storages = [
   {
     "id": "C",
     "sensor_pin": 2,
-    "driving_pin": 6,
-    "direction_pin": 7,
+    "driving_pin": 7,
+    "direction_pin": 8,
     "calibration": {
       "MOVE_STOP": 90,
       "TILT_STOP": 87,
@@ -59,7 +58,7 @@ def on_close():
 def initDashboard():
   global board, card_storage_manager
 
-  board = PyMata3(2)
+  board = PyMata("/dev/ttyUSB0")
   card_storage_manager = CardStorageManager(board)
 
   print (card_storage_manager.board)
@@ -88,27 +87,44 @@ def initDashboard():
   sliders.show()
 
 def update():
-  print("update")
+  global card_storage_manager
+  if not card_storage_manager:
+    return
+
+  card_storage_manager.update()
+
   for i, storage in enumerate(card_storage_manager.getCardStorages()):
-    print("update" + storage.id)
-    if storage.cardDetected():
+    # print("update {} {}".format(i, storage.isCardDetected()))
+    if storage.isCardDetected():
       storages[i]['button'].bg = 'green'
     else:
       storages[i]['button'].bg = None
 
+def sendCardTo(x, y):
+  print('Send card to {} {}'.format(x, y))
 
 app = App(title = 'Door System', width = 1600, height = 900)
-app.tk.attributes("-fullscreen",True)
+# app.tk.attributes("-fullscreen",True)
 
 menu_box = Box(app, width="fill", align="top")
 sliders = Box(app, layout="grid")
 sliders.hide()
-loader = Text(app, text="Loading dashboard...")
+waffle = Waffle(app, height=5, width=3, command=sendCardTo)
+waffle.set_pixel(1, 0, 'green')
+waffle.set_pixel(0, 1, 'green')
+waffle.set_pixel(2, 1, 'green')
+waffle.set_pixel(0, 2, 'green')
+waffle.set_pixel(2, 2, 'green')
+waffle.set_pixel(0, 3, 'green')
+waffle.set_pixel(2, 3, 'green')
+waffle.set_pixel(1, 4, 'green')
+loader = Text(app, text="Connecting to Arduino...")
 close = PushButton(menu_box, text="X", align="right", command=on_close)
+
 
 # When the user tries to close the window, run the function do_this_on_close()
 app.on_close(on_close)
 
-app.repeat(300, update)
+app.repeat(100, update)
 app.after(100, initDashboard)
 app.display()
