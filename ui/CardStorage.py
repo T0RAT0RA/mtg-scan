@@ -1,5 +1,8 @@
 class CardStorage:
 
+  TILT_STATE_LEFT = 1
+  TILT_STATE_RIGHT = 2
+  TILT_STATE_NONE = 3
 
   def __init__(self, id, driving_pin, direction_pin, sensor_pin, calibration=None, inverted_driving_rotation=False, board=None):
     self.id = id
@@ -15,6 +18,8 @@ class CardStorage:
     self.TILT_STOP = calibration['TILT_STOP']
     self.TILT_LEFT = calibration['TILT_LEFT']
     self.TILT_RIGHT = calibration['TILT_RIGHT']
+
+    self.tiltState = None
 
     self.cardDetected = False
 
@@ -65,19 +70,17 @@ class CardStorage:
     print("_cardStorage " + self.id + ": stop")
     self.board.analog_write(self.driving_pin, self.MOVE_STOP)
 
-  # void CardStorage::tiltLeftWhenCard()
-  # {
-  #   _tiltState = CardStorageTiltState::left;
-  # }
+  def tiltLeftWhenCard(self):
+    print("_cardStorage " + self.id + ": tiltRightWhenCard")
+    self.tiltState = self.TILT_STATE_LEFT
 
   def tiltLeft(self):
     print("_cardStorage " + self.id + ": tiltLeft")
     self.board.analog_write(self.direction_pin, self.TILT_LEFT)
 
-  # void CardStorage::tiltRightWhenCard()
-  # {
-  #   _tiltState = CardStorageTiltState::right;
-  # }
+  def tiltRightWhenCard(self):
+    print("_cardStorage " + self.id + ": tiltRightWhenCard")
+    self.tiltState = self.TILT_STATE_RIGHT
 
   def tiltRight(self):
     print("_cardStorage " + self.id + ": tiltRight")
@@ -86,8 +89,11 @@ class CardStorage:
   def noTilt(self):
     print("_cardStorage " + self.id + ": noTilt")
     self.board.analog_write(self.direction_pin, self.TILT_STOP)
+    self.tiltState = None
 
-  # CardStorageTiltState CardStorage::getTiltState()
-  # {
-  #   return _tiltState;
-  # }
+  def noTiltWhenCard(self):
+    print("_cardStorage " + self.id + ": noTiltWhenCard")
+    self.tiltState = self.TILT_STATE_NONE
+
+  def getTiltState(self):
+    return self.tiltState

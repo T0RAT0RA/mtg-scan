@@ -1,3 +1,4 @@
+import time
 from CardStorage import CardStorage
 
 class CardStorageManager:
@@ -6,6 +7,9 @@ class CardStorageManager:
   def __init__(self, board=None):
     self.board = board
     self.card_storages = []
+
+  def setBoard(self, board):
+    self.board = board
 
   def addCardStorage(self, card_storage_config):
     card_storage = CardStorage(**card_storage_config, board=self.board)
@@ -17,69 +21,61 @@ class CardStorageManager:
     return self.card_storages
 
   def update(self):
-    # bool stopAll = false;
-    # for (int i = 0; i < _cardStorageCount; i++) {
-    #   _cardStorage[i].update();
-    #   if (_cardStorage[i].cardDetected() && _cardStorage[i].getTiltState() != CardStorageTiltState::none) {
-    #     switch (_cardStorage[i].getTiltState()) {
-    #       case CardStorageTiltState::left:
-    #         delay(100);
-    #         _cardStorage[i].stop();
-    #         _cardStorage[i].tiltLeft();
-    #         delay(500);
-    #         stopAll = true;
-    #       break;
-    #       case CardStorageTiltState::right:
-    #         delay(100);
-    #         _cardStorage[i].stop();
-    #         _cardStorage[i].tiltRight();
-    #         delay(500);
-    #         stopAll = true;
-    #       break;
-    #       default:
-    #         _cardStorage[i].noTilt();
-    #       break;
-    #     }
-    #   }
-    # }
+    stopAll = False
 
-    # if (stopAll) {
-    #   for (int i = 0; i < _cardStorageCount; i++) {
-    #     _cardStorage[i].stop();
-    #     _cardStorage[i].noTilt();
-    #   }
-    # }
-    pass
+    for storage in self.getCardStorages():
+      if storage.isCardDetected() and storage.getTiltState():
+        if storage.getTiltState() == 1:
+            time.sleep(0.1)
+            storage.stop()
+            storage.tiltLeft()
+            time.sleep(0.5)
+            stopAll = True
+        elif storage.getTiltState() == 2:
+            time.sleep(0.1)
+            storage.stop()
+            storage.tiltRight()
+            time.sleep(0.5)
+            stopAll = True
+        elif storage.getTiltState() == 3:
+            time.sleep(2)
+            storage.stop()
+            stopAll = True
 
-  def sendCardTo(self, storage):
-    # int targetStorage = round((storage + 0.5) / 2) - 1;
+    if stopAll:
+      for storage in self.getCardStorages():
+        storage.stop()
+        storage.noTilt()
 
-    # for (int i = 0; i < _cardStorageCount; i++) {
 
-    #     _cardStorage[i].stop();
-    #     _cardStorage[i].noTilt();
+  def sendCardTo(self, targetStorage):
+    targetStorageBox = round((targetStorage + 0.5) / 2) - 1;
 
-    #     if (i <= targetStorage) {
-    #     _cardStorage[i].moveForward();
-    #       if (i == targetStorage) {
-    #         if (storage % 2 == 0) {
-    #           _cardStorage[i].tiltLeftWhenCard();
-    #         } else {
-    #           _cardStorage[i].tiltRightWhenCard();
-    #         }
-    #       }
-    #     }
-    # }
+    for i, storage in enumerate(self.getCardStorages()):
+        storage.stop()
+        storage.noTilt()
 
-    # if (storage == 0) {
-    #   _cardStorage[0].moveBackward();
-    # }
-    pass
+        if i <= targetStorageBox:
+          storage.moveForward()
+
+          if i == len(self.getCardStorages()) - 1:
+            storage.noTiltWhenCard()
+
+          if i == targetStorageBox:
+            if targetStorage % 2 == 0:
+              storage.tiltLeftWhenCard()
+            else:
+              storage.tiltRightWhenCard()
+
+
+    if targetStorage == 0:
+      self.getCardStorages()[0].moveBackward()
+      self.getCardStorages()[0].noTiltWhenCard()
 
   def stop(self):
-    for storage in self.storages:
+    for storage in self.getCardStorages():
       storage.stop()
 
   def noTilt(self):
-    for storage in self.storages:
+    for storage in self.getCardStorages():
       storage.noTilt()
